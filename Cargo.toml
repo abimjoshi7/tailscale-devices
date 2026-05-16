@@ -13,12 +13,14 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 openssh = { version = "0.10", features = ["native-mux"] }
 dotenvy = "0.15"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
 futures = "0.3"
 anyhow = "1.0"
 thiserror = "1.0"
 subtle = "2.5"
+uuid = { version = "1", features = ["v4"] }
+prometheus = { version = "0.13", features = ["process"] }
 
 [profile.release]
 lto = "thin"

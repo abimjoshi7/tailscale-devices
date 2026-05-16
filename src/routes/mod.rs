@@ -4,6 +4,7 @@ pub mod health;
 pub mod proxy;
 
 use actix_web::web;
+use crate::metrics::metrics_handler;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -11,6 +12,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/health", web::get().to(health::get_health))
             .route("/livez", web::get().to(health::livez))
             .route("/readyz", web::get().to(health::readyz))
+            .route("/metrics", web::get().to(metrics_handler))
             .route("/devices", web::get().to(devices::list_devices))
             .route("/devices/{id}/health", web::get().to(devices::device_health))
             .route("/devices/{id}/command", web::post().to(commands::run_command))

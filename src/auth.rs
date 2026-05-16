@@ -9,7 +9,7 @@ use actix_web::{
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 
-const PUBLIC_PATHS: &[&str] = &["/health", "/livez", "/readyz"];
+const PUBLIC_PATHS: &[&str] = &["/health", "/livez", "/readyz", "/metrics"];
 
 pub async fn require_api_key(
     req: ServiceRequest,
