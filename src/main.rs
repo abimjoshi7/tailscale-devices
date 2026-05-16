@@ -148,5 +148,5 @@ async fn wait_for_shutdown_signal() {
 }
 
 fn io_err(e: anyhow::Error) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+    std::io::Error::other(e.to_string())
 }

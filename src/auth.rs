@@ -16,7 +16,7 @@ pub async fn require_api_key(
     next: Next<impl MessageBody + 'static>,
 ) -> Result<ServiceResponse<BoxBody>, Error> {
     let path = req.path();
-    if PUBLIC_PATHS.iter().any(|p| *p == path) {
+    if PUBLIC_PATHS.contains(&path) {
         return next.call(req).await.map(|r| r.map_into_boxed_body());
     }
 
@@ -34,7 +34,7 @@ pub async fn require_api_key(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let authorized = provided.as_deref().map_or(false, |key| {
+    let authorized = provided.as_deref().is_some_and(|key| {
         state
             .config
             .api_keys

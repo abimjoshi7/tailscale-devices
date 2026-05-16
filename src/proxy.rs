@@ -34,10 +34,8 @@ pub async fn forward(
     };
 
     for (name, value) in req.headers() {
-        if !is_hop_by_hop(name.as_str()) {
-            if let Ok(val) = value.to_str() {
-                req_builder = req_builder.header(name.as_str(), val);
-            }
+        if !is_hop_by_hop(name.as_str()) && let Ok(val) = value.to_str() {
+            req_builder = req_builder.header(name.as_str(), val);
         }
     }
 
@@ -67,10 +65,8 @@ pub async fn forward(
 
     let mut res_builder = HttpResponse::build(status);
     for (name, value) in response.headers() {
-        if !is_hop_by_hop(name.as_str()) {
-            if let Ok(val) = value.to_str() {
-                res_builder.insert_header((name.as_str(), val));
-            }
+        if !is_hop_by_hop(name.as_str()) && let Ok(val) = value.to_str() {
+            res_builder.insert_header((name.as_str(), val));
         }
     }
 

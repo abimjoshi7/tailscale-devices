@@ -128,7 +128,7 @@ impl Config {
         let ssh_known_hosts = std::env::var("SSH_KNOWN_HOSTS")
             .ok()
             .map(PathBuf::from)
-            .or_else(|| dirs_known_hosts())
+            .or_else(dirs_known_hosts)
             .ok_or_else(|| ConfigError("could not resolve SSH known_hosts path".into()))?;
 
         let api_keys = parse_csv_env("API_KEYS")
