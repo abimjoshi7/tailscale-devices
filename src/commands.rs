@@ -50,7 +50,7 @@ pub async fn run_ssh(
     })
 }
 
-fn validate_command(
+pub(crate) fn validate_command(
     config: &Config,
     command: &str,
     args: &[String],
@@ -92,6 +92,89 @@ fn validate_command(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn cfg() -> Config {
+        Config::for_testing()
+    }
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn empty_command_rejected() {
+        let err = validate_command(&cfg(), "", &[]).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "command_empty", .. }));
+    }
+
+    #[test]
+    fn slash_in_command_rejected() {
+        let err = validate_command(&cfg(), "/bin/sh", &[]).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "command_invalid", .. }));
+    }
+
+    #[test]
+    fn whitespace_in_command_rejected() {
+        let err = validate_command(&cfg(), "up time", &[]).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "command_invalid", .. }));
+    }
+
+    #[test]
+    fn command_not_in_allowlist() {
+        let err = validate_command(&cfg(), "rm", &[]).unwrap_err();
+        assert!(matches!(err, AppError::Forbidden { code: "command_not_allowed", .. }));
+    }
+
+    #[test]
+    fn allowed_command_no_args() {
+        assert!(validate_command(&cfg(), "uptime", &[]).is_ok());
+    }
+
+    #[test]
+    fn allowed_command_safe_args() {
+        assert!(validate_command(&cfg(), "df", &args(&["-h", "/"])).is_ok());
+    }
+
+    #[test]
+    fn arg_with_semicolon_rejected() {
+        let err = validate_command(&cfg(), "uptime", &args(&["; rm -rf /"])).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "arg_invalid", .. }));
+    }
+
+    #[test]
+    fn arg_with_pipe_rejected() {
+        let err = validate_command(&cfg(), "uptime", &args(&["| cat /etc/passwd"])).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "arg_invalid", .. }));
+    }
+
+    #[test]
+    fn arg_with_dollar_rejected() {
+        let err = validate_command(&cfg(), "hostname", &args(&["$(id)"])).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "arg_invalid", .. }));
+    }
+
+    #[test]
+    fn arg_with_newline_rejected() {
+        let err = validate_command(&cfg(), "uptime", &args(&["foo\nbar"])).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "arg_invalid", .. }));
+    }
+
+    #[test]
+    fn arg_with_backtick_rejected() {
+        let err = validate_command(&cfg(), "uptime", &args(&["`id`"])).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest { code: "arg_invalid", .. }));
+    }
+
+    #[test]
+    fn multiple_safe_args_ok() {
+        assert!(validate_command(&cfg(), "df", &args(&["-h", "-T", "/var", "/home"])).is_ok());
+    }
 }
 
 async fn execute_ssh(

@@ -9,6 +9,8 @@ mod proxy;
 mod request_id;
 mod routes;
 mod tailscale;
+#[cfg(test)]
+mod tests;
 
 use actix_web::{middleware::from_fn, web, App, HttpServer};
 use std::sync::Arc;

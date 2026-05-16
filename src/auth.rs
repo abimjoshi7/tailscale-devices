@@ -1,10 +1,10 @@
 use crate::error::AppError;
 use crate::models::AppState;
 use actix_web::{
-    body::MessageBody,
+    body::{BoxBody, MessageBody},
     dev::{ServiceRequest, ServiceResponse},
     middleware::Next,
-    web, Error,
+    web, Error, ResponseError,
 };
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
@@ -14,10 +14,10 @@ const PUBLIC_PATHS: &[&str] = &["/health", "/livez", "/readyz", "/metrics"];
 pub async fn require_api_key(
     req: ServiceRequest,
     next: Next<impl MessageBody + 'static>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     let path = req.path();
     if PUBLIC_PATHS.iter().any(|p| *p == path) {
-        return next.call(req).await;
+        return next.call(req).await.map(|r| r.map_into_boxed_body());
     }
 
     let state = req
@@ -25,7 +25,7 @@ pub async fn require_api_key(
         .expect("AppState is registered for every request");
 
     if !state.config.auth_required() {
-        return next.call(req).await;
+        return next.call(req).await.map(|r| r.map_into_boxed_body());
     }
 
     let provided = req
@@ -34,22 +34,21 @@ pub async fn require_api_key(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let Some(provided) = provided else {
-        return Err(AppError::Unauthorized.into());
-    };
+    let authorized = provided.as_deref().map_or(false, |key| {
+        state
+            .config
+            .api_keys
+            .iter()
+            .any(|k| eq_constant_time(key.as_bytes(), k.as_bytes()))
+    });
 
-    let provided_bytes = provided.as_bytes();
-    let matches = state
-        .config
-        .api_keys
-        .iter()
-        .any(|k| eq_constant_time(provided_bytes, k.as_bytes()));
-
-    if !matches {
-        return Err(AppError::Unauthorized.into());
+    if !authorized {
+        let (http_req, _) = req.into_parts();
+        let response = AppError::Unauthorized.error_response();
+        return Ok(ServiceResponse::new(http_req, response).map_into_boxed_body());
     }
 
-    next.call(req).await
+    next.call(req).await.map(|r| r.map_into_boxed_body())
 }
 
 fn eq_constant_time(a: &[u8], b: &[u8]) -> bool {

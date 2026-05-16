@@ -6,28 +6,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
-struct LocalApiStatus {
-    #[serde(rename = "Self")]
-    self_device: Option<LocalApiPeer>,
-    #[serde(rename = "Peer")]
-    peer: HashMap<String, LocalApiPeer>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct LocalApiPeer {
-    public_key: String,
-    host_name: String,
-    dns_name: String,
-    #[serde(rename = "TailscaleIPs")]
-    tail_scale_i_ps: Vec<String>,
-    #[serde(rename = "OS")]
-    os: String,
-    last_seen: Option<DateTime<Utc>>,
-    online: bool,
-}
-
-#[derive(Debug, Deserialize)]
 struct AdminApiResponse {
     devices: Vec<AdminApiDevice>,
 }
@@ -69,50 +47,9 @@ struct CliPeer {
 
 pub async fn fetch_devices(config: &Config, client: &reqwest::Client) -> Result<Vec<TailscaleDevice>> {
     match config.discovery_mode {
-        DiscoveryMode::LocalApi => fetch_local_api(client).await,
         DiscoveryMode::AdminApi => fetch_admin_api(config, client).await,
         DiscoveryMode::Cli => fetch_cli().await,
     }
-}
-
-async fn fetch_local_api(client: &reqwest::Client) -> Result<Vec<TailscaleDevice>> {
-    let response = client
-        .get("http://127.0.0.1:41112/localapi/v0/status")
-        .header("Sec-Tailscale", "okay")
-        .send()
-        .await?
-        .json::<LocalApiStatus>()
-        .await?;
-
-    let mut devices = Vec::new();
-
-    if let Some(s) = response.self_device {
-        devices.push(peer_to_device(s.public_key.clone(), s)?);
-    }
-
-    for (_, peer) in response.peer {
-        devices.push(peer_to_device(peer.public_key.clone(), peer)?);
-    }
-
-    Ok(devices)
-}
-
-fn peer_to_device(id: String, peer: LocalApiPeer) -> Result<TailscaleDevice> {
-    let ip = peer
-        .tail_scale_i_ps
-        .first()
-        .ok_or_else(|| anyhow!("peer {} has no tailscale ips", id))?
-        .clone();
-
-    Ok(TailscaleDevice {
-        id,
-        hostname: peer.host_name,
-        dns_name: peer.dns_name,
-        ip,
-        os: peer.os,
-        last_seen: peer.last_seen,
-        is_online: peer.online,
-    })
 }
 
 async fn fetch_admin_api(config: &Config, client: &reqwest::Client) -> Result<Vec<TailscaleDevice>> {
@@ -148,7 +85,6 @@ async fn fetch_admin_api(config: &Config, client: &reqwest::Client) -> Result<Ve
                 .unwrap_or_default();
 
             let is_online = !ip.is_empty();
-
             TailscaleDevice {
                 id: d.id,
                 hostname: d.hostname,
@@ -181,7 +117,6 @@ async fn fetch_cli() -> Result<Vec<TailscaleDevice>> {
     let mut devices = Vec::new();
 
     devices.push(cli_peer_to_device(status.self_device.public_key.clone(), status.self_device)?);
-
     for (_, peer) in status.peers {
         devices.push(cli_peer_to_device(peer.public_key.clone(), peer)?);
     }

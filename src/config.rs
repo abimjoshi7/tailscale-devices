@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum DiscoveryMode {
-    LocalApi,
     AdminApi,
     Cli,
 }
@@ -15,10 +14,14 @@ impl FromStr for DiscoveryMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "local_api" | "localapi" | "local-api" => Ok(DiscoveryMode::LocalApi),
             "admin_api" | "adminapi" | "admin-api" => Ok(DiscoveryMode::AdminApi),
             "cli" => Ok(DiscoveryMode::Cli),
-            _ => Err(format!("unknown discovery mode: {}", s)),
+            "local_api" | "localapi" | "local-api" => Err(
+                "LocalApi mode is not supported (Tailscale uses a Unix socket, not TCP). \
+                 Use DISCOVERY_MODE=Cli instead."
+                    .into(),
+            ),
+            _ => Err(format!("unknown discovery mode '{}'. Valid: Cli, AdminApi", s)),
         }
     }
 }
@@ -111,7 +114,7 @@ impl Config {
             .map(|m| m.parse::<DiscoveryMode>())
             .transpose()
             .map_err(ConfigError)?
-            .unwrap_or(DiscoveryMode::LocalApi);
+            .unwrap_or(DiscoveryMode::Cli);
 
         let tailscale_auth_key = non_empty_env("TAILSCALE_AUTH_KEY");
         let tailnet = non_empty_env("TAILSCALE_TAILNET");
@@ -170,6 +173,28 @@ impl Config {
 
         cfg.validate()?;
         Ok(cfg)
+    }
+}
+
+#[cfg(test)]
+impl Config {
+    pub fn for_testing() -> Self {
+        Config {
+            port: 3453,
+            discovery_mode: DiscoveryMode::Cli,
+            tailscale_auth_key: None,
+            tailnet: None,
+            health_poll_secs: 30,
+            ssh_user: "root".into(),
+            ssh_known_hosts: PathBuf::from("/dev/null"),
+            bind_tailscale: false,
+            api_keys: vec!["test-api-key-32-characters-long!!".into()],
+            allowed_commands: vec!["uptime".into(), "df".into(), "hostname".into()],
+            allowed_proxy_ports: vec![8080],
+            max_command_timeout_secs: 10,
+            max_proxy_body_bytes: 1024 * 1024,
+            shutdown_timeout_secs: 5,
+        }
     }
 }
 
